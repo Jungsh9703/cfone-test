@@ -144,11 +144,6 @@
         <button type="button" data-range="30">30일</button>
       </div>
       <input type="date" name="from" aria-label="시작일"><span class="muted">~</span><input type="date" name="to" aria-label="종료일">
-      <div class="seg" role="group" aria-label="종류">
-        <button type="button" data-kind="mail_send,attachment" aria-pressed="true">메일·첨부</button>
-        <button type="button" data-kind="mail_send">메일 발송</button>
-        <button type="button" data-kind="">전체</button>
-      </div>
       <input type="text" name="user" placeholder="사용자" aria-label="사용자 (Zero Trust)">
       <input type="text" name="app" placeholder="애플리케이션" aria-label="애플리케이션">
       <input type="text" name="host" placeholder="Host" aria-label="Host">
@@ -246,7 +241,10 @@
 
   // ---- filters ----
   const form = $("filters");
-  let offset = 0, kind = "mail_send,attachment";
+  // Always mail sends + attachment uploads; other captured POSTs (UI calls,
+  // autocomplete, ...) stay out of the dashboard.
+  let offset = 0;
+  const kind = "mail_send,attachment";
   function setRange(days) {
     form.from.value = utcDay(Date.now() - (days - 1) * DAY); form.to.value = utcDay(Date.now());
     for (const b of form.querySelectorAll("[data-range]")) b.setAttribute("aria-pressed", String(b.dataset.range === String(days)));
@@ -275,9 +273,6 @@
   function drill(field, value) { form[field].value = value; offset = 0; setTab("list"); }
   form.addEventListener("submit", (e) => { e.preventDefault(); offset = 0; load(); });
   for (const b of form.querySelectorAll("[data-range]")) b.addEventListener("click", () => { setRange(Number(b.dataset.range)); offset = 0; load(); });
-  for (const b of form.querySelectorAll("[data-kind]")) b.addEventListener("click", () => {
-    kind = b.dataset.kind; for (const x of form.querySelectorAll("[data-kind]")) x.setAttribute("aria-pressed", String(x === b)); offset = 0; load();
-  });
   for (const n of ["from", "to"]) form[n].addEventListener("change", () => { for (const b of form.querySelectorAll("[data-range]")) b.setAttribute("aria-pressed", "false"); });
   $("reset").addEventListener("click", () => { form.reset(); setRange(7); offset = 0; load(); });
   $("prev").addEventListener("click", () => { offset = Math.max(0, offset - PAGE); load(); });
@@ -373,7 +368,7 @@
       if (it.attachSize == null) sizeCell.classList.add("null");
       const tr = el("tr", { tabindex: "0", "aria-label": `${dtf.format(new Date(it.time))} 요청 상세 열기` },
         el("td", { class: "time", title: it.time, text: dtf.format(new Date(it.time)) }),
-        txt(it.user, "addr"), txt(it.application || "(unknown)", it.application ? "" : "null"), txt(it.sender, "addr"), txt(recipients, "addr"),
+        txt(it.user, "addr"), txt(it.application || "(unknown)", it.application ? "" : "null"), txt(it.senderName && it.sender ? `${it.senderName} <${it.sender}>` : it.sender || it.senderName, "addr"), txt(recipients, "addr"),
         el("td", {}, el("span", { class: `tag ${it.kind === "mail_send" ? "mail" : ""}`, title: `${it.method || ""} ${it.url || ""}`, text: KIND[it.kind] || it.kind }), " ", it.subject || el("span", { class: "null", text: "—" })),
         txt(files, "file"),
         sizeCell,
@@ -411,7 +406,7 @@
       const sections = [];
       sections.push(kv([
         ["시간", `${dtf.format(new Date(d.time))} (${d.time})`], ["종류", KIND[d.kind] || d.kind],
-        ["사용자", [d.user, d.userName && `(${d.userName})`].filter(Boolean).join(" ")], ["애플리케이션", d.application || "(unknown)"], ["발신", d.sender],
+        ["사용자", [d.user, d.userName && `(${d.userName})`].filter(Boolean).join(" ")], ["애플리케이션", d.application || "(unknown)"], ["발신", [d.senderName, d.sender && `<${d.sender}>`].filter(Boolean).join(" ")],
         ["수신 (to)", d.to.join(", ")], ["참조 (cc)", d.cc.join(", ")], ["숨은참조 (bcc)", d.bcc.join(", ")], ["제목", d.subject],
         ["전송 경로", `${d.method} ${d.url}`], ["응답 상태", d.status], ["출발지 IP", d.srcIp],
         ["첨부 (요청 기준)", d.fileCount ? `${d.fileCount}개${d.attachSize != null ? ` · ${bytes(d.attachSize)} (${nf.format(d.attachSize)} bytes)` : ""}${d.fileNames.length ? ` · ${d.fileNames.join(", ")}` : ""}` : null],
